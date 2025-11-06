@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>電磁波 探究シミュレーション - 高度版（PhET準拠）</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#0f1216; --panel:#f5f6f8; --grid:#e7e9ee;
+    --muted:#7a8596; --accent:#2a7de1;
+    --E:#e53935; --B:#1e88e5; --S:#00bfa5; --electron:#ffd700;
+    --spark:#ff9800;
+  }
+  body.dark{
+    --bg:#0f1115; --fg:#eef2f7; --panel:#141923; --grid:#262c36;
+    --muted:#b9c0cc; --accent:#64b5f6;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    overflow-y:auto;
+  }
+  header{
+    min-width:1024px; display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:12px 14px;border-bottom:1px solid var(--grid);
+  }
+  h1{font-size:18px;margin:0 10px 0 0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{
+    border:1px solid var(--grid);background:var(--panel);color:var(--fg);
+    padding:6px 10px;border-radius:12px;cursor:pointer;font-size:13px;
+  }
+  .btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .select,.range,.number{
+    padding:6px 10px;border:1px solid var(--grid);
+    background:var(--panel);color:var(--fg);border-radius:10px;font-size:13px;
+  }
+  main{
+    min-width:1024px;display:grid;grid-template-columns:1fr 380px;gap:12px;padding:12px;
+  }
+  canvas{
+    width:100%;border:1px solid var(--grid);border-radius:14px;background:var(--bg);
+    cursor:crosshair;
+  }
+  #main{height:580px}
+  .small{height:200px}
+  .card{
+    background:var(--panel);border:1px solid var(--grid);border-radius:14px;padding:12px;
+    margin-bottom:10px;
+  }
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px;font-weight:500}
+  .legend span{
+    display:inline-flex;align-items:center;gap:6px;margin-right:12px;font-size:12px;
+  }
+  .chip{
+    background:var(--accent);color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;
+  }
+  .dot{width:14px;height:4px;border-radius:2px;display:inline-block}
+  .circle{
+    width:11px;height:11px;border-radius:50%;border:2px solid var(--B);display:inline-block;
+  }
+  ul{margin:0 0 8px 18px;padding:0}
+  li{margin:4px 0;font-size:13px}
+  .meter{
+    height:12px;background:var(--grid);border-radius:999px;position:relative;overflow:hidden;
+  }
+  .meter>div{
+    height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,#6ee7b7,#22c55e,#16a34a);
+    transition:width 0.1s ease-out;
+  }
+  .hint{font-size:12px;color:var(--muted);line-height:1.4}
+  .section-title{
+    font-size:14px;font-weight:600;margin:0 0 8px 0;
+    display:flex;align-items:center;gap:6px;
+  }
+  .status-indicator{
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%, 100%{opacity:1}
+    50%{opacity:0.4}
+  }
+  .control-group{margin:12px 0}
+  .radio-group{
+    display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;
+  }
+  .radio-label{
+    display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;
+  }
+  .value-display{
+    font-family:monospace;font-size:13px;color:var(--accent);font-weight:600;
+  }
+  .graph-container{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>電磁波 探究シミュレーション（高度版）</h1>
+  <div class="toolbar">
+    <button class="btn active" data-mode="emission">A: 電気振動と放射</button>
+    <button class="btn" data-mode="hertz">B: ヘルツの実験</button>
+    <button class="btn" data-mode="propagation">C: 伝搬と受信</button>
+    <select id="bgSel" class="select">
+      <option value="light">白背景</option>
+      <option value="dark">黒背景</option>
+    </select>
+    <span class="chip" id="fps">- fps</span>
+  </div>
+</header>
+
+<main>
+  <!-- 左：主キャンバス -->
+  <div>
+    <canvas id="main"></canvas>
+    
+    <!-- グラフエリア -->
+    <div class="card">
+      <div class="graph-container">
+        <div>
+          <label>電気振動 / 電場・磁場</label>
+          <canvas id="g1" class="small"></canvas>
+        </div>
+        <div>
+          <label>エネルギー / 受信信号</label>
+          <canvas id="g2" class="small"></canvas>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="legend">
+          <span><i class="dot" style="background:var(--E)"></i>電場 E</span>
+          <span><i class="dot" style="background:var(--B)"></i>磁場 B</span>
+          <span><i class="dot" style="background:var(--S)"></i>ポインティングS</span>
+          <span><i class="circle" style="border-color:var(--electron)"></i>電子</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：コントロールパネル -->
+  <div>
+    <!-- Peer Instruction：予測 -->
+    <div class="card">
+      <div class="section-title">
+        <span class="status-indicator"></span>
+        Peer Instruction：① 予測
+      </div>
+      <label>問いP1：周波数 f を2倍にすると、波長 λ はどうなる？</label>
+      <div class="radio-group">
+        <label class="radio-label"><input type="radio" name="p1"> 2倍</label>
+        <label class="radio-label"><input type="radio" name="p1"> 変わらない</label>
+        <label class="radio-label"><input type="radio" name="p1" checked> 1/2倍 ✓</label>
+      </div>
+      <label style="margin-top:8px">問いP2：振幅 A を2倍にすると、受信強度は？</label>
+      <div class="radio-group">
+        <label class="radio-label"><input type="radio" name="p2"> 2倍</label>
+        <label class="radio-label"><input type="radio" name="p2" checked> 4倍 ✓</label>
+        <label class="radio-label"><input type="radio" name="p2"> 変わらない</label>
+      </div>
+    </div>
+
+    <!-- 実験：コントロール -->
+    <div class="card">
+      <div class="section-title">② 実験パラメータ</div>
+      
+      <!-- 操作モード -->
+      <div class="control-group">
+        <label>送信機の動作モード</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="mode" value="manual"> 手動
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="mode" value="oscillate" checked> 周期的振動
+          </label>
+        </div>
+        <div class="hint">手動モード：キャンバス上の電子をドラッグできます</div>
+      </div>
+
+      <!-- 振幅 -->
+      <div class="control-group">
+        <label>振幅 A <span class="value-display" id="ampVal">1.0</span></label>
+        <input id="amp" class="range" type="range" min="0.3" max="2.5" step="0.1" value="1.0">
+      </div>
+
+      <!-- 周波数 -->
+      <div class="control-group">
+        <label>周波数 f <span class="value-display" id="freqVal">1.0</span> (相対)</label>
+        <input id="freq" class="range" type="range" min="0.3" max="3.0" step="0.1" value="1.0">
+      </div>
+
+      <!-- モード別追加コントロール -->
+      <div id="extraEmission">
+        <div class="control-group">
+          <label>LC回路パラメータ（概念）</label>
+          <div class="hint">L（インダクタンス）・C（キャパシタンス）</div>
+          <div class="row">
+            <div style="flex:1">
+              <label>L <span class="value-display" id="lVal">1.0</span></label>
+              <input id="Lval" class="range" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+            <div style="flex:1">
+              <label>C <span class="value-display" id="cVal">1.0</span></label>
+              <input id="Cval" class="range" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+          </div>
+          <div class="hint">共振周波数 f₀ ≈ 1/(2π√LC) = <span class="value-display" id="fLC">1.0</span></div>
+        </div>
+      </div>
+
+      <div id="extraPropagation" style="display:none">
+        <div class="control-group">
+          <label>送受信距離 <span class="value-display" id="distVal">0.8</span> (相対)</label>
+          <input id="dist" class="range" type="range" min="0.3" max="1.2" step="0.05" value="0.8">
+        </div>
+        <div class="control-group">
+          <label>媒質の屈折率 n <span class="value-display" id="nmedVal">1.00</span></label>
+          <input id="nmed" class="range" type="range" min="1.00" max="1.80" step="0.01" value="1.00">
+          <div class="hint">波長 λ は媒質中で λ = λ₀/n</div>
+        </div>
+      </div>
+
+      <div id="extraHertz" style="display:none">
+        <div class="control-group">
+          <label>火花ギャップ間隔 <span class="value-display" id="gapVal">1.0</span></label>
+          <input id="gapSize" class="range" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+          <div class="hint">間隔が小さいほど放電しやすい</div>
+        </div>
+      </div>
+
+      <!-- 表示オプション -->
+      <div class="control-group">
+        <label>電磁場の表示</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="fieldDisplay" value="vectors" checked> ベクトル
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="fieldDisplay" value="curves"> 曲線
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="fieldDisplay" value="both"> 両方
+          </label>
+        </div>
+      </div>
+
+      <!-- 実行制御 -->
+      <div class="row" style="margin-top:12px">
+        <button id="run" class="btn">▶ 開始 / 一時停止</button>
+        <button id="reset" class="btn">リセット</button>
+      </div>
+    </div>
+
+    <!-- 観測結果 -->
+    <div class="card">
+      <div class="section-title">③ 観測・測定</div>
+      <label>受信強度 （I ∝ A²/r²）</label>
+      <div class="meter"><div id="meterFill"></div></div>
+      <div class="hint" style="margin-top:8px">
+        <b>波長 λ：</b> <span class="value-display" id="wavelengthVal">-</span> (相対)<br>
+        <b>周期 T：</b> <span class="value-display" id="periodVal">-</span> (相対)
+      </div>
+    </div>
+
+    <!-- 議論の視点 -->
+    <div class="card">
+      <div class="section-title">④ 議論の視点</div>
+      <ul>
+        <li>周波数を変えると波長はどう変化したか？（λ = c/f の関係）</li>
+        <li>振幅を変えると受信強度はどう変化したか？（I ∝ A²）</li>
+        <li>電場Eと磁場Bの関係は？（位相、直交性）</li>
+        <li>ポインティングベクトルSの向きとエネルギーの流れの関係は？</li>
+        <li>ヘルツの実験では、なぜ火花が飛ぶのか？</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   電磁波 探究シミュレーション - 高度版（PhET準拠）
+   
+   学習目標：
+   1. 電気振動（LC回路）と電磁波の発生の理解
+   2. ヘルツの実験の再現と理解
+   3. 電磁波の伝搬（波長、周期、速度の関係）
+   4. 受信機での電磁波の検出とエネルギーの移動
+   
+   新機能：
+   - 電子の振動を視覚化
+   - 手動モードで電子をドラッグ可能
+   - ヘルツの実験モード（火花ギャップ）
+   - 詳細な電場・磁場ベクトル表示
+   - 受信機の応答の可視化
+============================================================ */
+
+// キャンバス取得
+const main = document.getElementById('main');
+const g1 = document.getElementById('g1');
+const g2 = document.getElementById('g2');
+const ctx = main.getContext('2d');
+const c1 = g1.getContext('2d');
+const c2 = g2.getContext('2d');
+
+// UI要素
+const modeBtns = [...document.querySelectorAll('.btn[data-mode]')];
+const bgSel = document.getElementById('bgSel');
+const fpsChip = document.getElementById('fps');
+const meterFill = document.getElementById('meterFill');
+const wavelengthVal = document.getElementById('wavelengthVal');
+const periodVal = document.getElementById('periodVal');
+
+// コントロール
+const amp = document.getElementById('amp');
+const freq = document.getElementById('freq');
+const Lval = document.getElementById('Lval');
+const Cval = document.getElementById('Cval');
+const dist = document.getElementById('dist');
+const nmed = document.getElementById('nmed');
+const gapSize = document.getElementById('gapSize');
+
+const ampVal = document.getElementById('ampVal');
+const freqVal = document.getElementById('freqVal');
+const lVal = document.getElementById('lVal');
+const cVal = document.getElementById('cVal');
+const fLC = document.getElementById('fLC');
+const distVal = document.getElementById('distVal');
+const nmedVal = document.getElementById('nmedVal');
+const gapVal = document.getElementById('gapVal');
+
+const resetBtn = document.getElementById('reset');
+const runBtn = document.getElementById('run');
+
+const extraEmission = document.getElementById('extraEmission');
+const extraPropagation = document.getElementById('extraPropagation');
+const extraHertz = document.getElementById('extraHertz');
+
+// 状態管理
+let mode = 'emission';
+let running = true;
+let manualMode = false;
+const state = {
+  time: 0,
+  electronY: 0,
+  electronVy: 0,
+  receiverElectronY: 0,
+  isDragging: false,
+  dragStartY: 0,
+  sparkIntensity: 0
+};
+
+// バッファ（グラフ用）
+const bufE = [], bufB = [], bufI = [], bufQ = [], bufS = [], bufU = [];
+const maxBuf = 400;
+
+// DPR対応
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = rect.width * dpr;
+  cv.height = rect.height * dpr;
+  const c = cv.getContext('2d');
+  c.scale(dpr, dpr);
+  cv.style.width = rect.width + 'px';
+  cv.style.height = rect.height + 'px';
+}
+
+function resizeCanvases() {
+  [main, g1, g2].forEach(setupCanvas);
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+// イベントリスナー：モード切り替え
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mode = btn.dataset.mode;
+    
+    extraEmission.style.display = (mode === 'emission') ? 'block' : 'none';
+    extraPropagation.style.display = (mode === 'propagation') ? 'block' : 'none';
+    extraHertz.style.display = (mode === 'hertz') ? 'block' : 'none';
+    
+    clearBuffers();
+    state.time = 0;
+    state.electronY = 0;
+    state.receiverElectronY = 0;
+    state.sparkIntensity = 0;
+  });
+});
+
+// 背景切り替え
+bgSel.addEventListener('change', (e) => {
+  document.body.className = e.target.value === 'dark' ? 'dark' : '';
+});
+
+// 手動/自動モード切り替え
+document.querySelectorAll('input[name="mode"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    manualMode = e.target.value === 'manual';
+    if (!manualMode) {
+      state.isDragging = false;
+    }
+  });
+});
+
+// スライダー値表示
+amp.addEventListener('input', () => { ampVal.textContent = Number(amp.value).toFixed(1); });
+freq.addEventListener('input', () => { 
+  freqVal.textContent = Number(freq.value).toFixed(1); 
+  updateDerivedValues();
+});
+Lval.addEventListener('input', () => { 
+  lVal.textContent = Number(Lval.value).toFixed(1); 
+  updateDerivedValues();
+});
+Cval.addEventListener('input', () => { 
+  cVal.textContent = Number(Cval.value).toFixed(1); 
+  updateDerivedValues();
+});
+dist.addEventListener('input', () => { distVal.textContent = Number(dist.value).toFixed(2); });
+nmed.addEventListener('input', () => { 
+  nmedVal.textContent = Number(nmed.value).toFixed(2); 
+  updateDerivedValues();
+});
+if(gapSize) gapSize.addEventListener('input', () => { gapVal.textContent = Number(gapSize.value).toFixed(1); });
+
+function updateDerivedValues() {
+  const f = effectiveFreq();
+  const n = Number(nmed.value);
+  const c = 240; // 相対的な光速
+  const lambda = c / (f * n);
+  const T = 1 / f;
+  
+  wavelengthVal.textContent = lambda.toFixed(1);
+  periodVal.textContent = T.toFixed(2);
+  
+  if (mode === 'emission') {
+    const L = Number(Lval.value);
+    const C = Number(Cval.value);
+    const f0 = 1 / (2 * Math.PI * Math.sqrt(L * C));
+    fLC.textContent = f0.toFixed(2);
+  }
+}
+
+// 実効周波数（LCモードの場合は共振周波数を考慮）
+function effectiveFreq() {
+  if (mode === 'emission') {
+    const L = Number(Lval.value);
+    const C = Number(Cval.value);
+    const f0 = 1 / (2 * Math.PI * Math.sqrt(L * C));
+    return f0 * Number(freq.value);
+  }
+  return Number(freq.value);
+}
+
+// 実行制御
+runBtn.addEventListener('click', () => {
+  running = !running;
+  runBtn.textContent = running ? '⏸ 一時停止' : '▶ 再開';
+});
+
+resetBtn.addEventListener('click', () => {
+  state.time = 0;
+  state.electronY = 0;
+  state.electronVy = 0;
+  state.receiverElectronY = 0;
+  state.sparkIntensity = 0;
+  clearBuffers();
+});
+
+function clearBuffers() {
+  bufE.length = 0;
+  bufB.length = 0;
+  bufI.length = 0;
+  bufQ.length = 0;
+  bufS.length = 0;
+  bufU.length = 0;
+}
+
+// マウスインタラクション
+let mouseX = 0, mouseY = 0;
+
+main.addEventListener('mousedown', (e) => {
+  if (!manualMode) return;
+  const rect = main.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+  
+  // 電子の位置チェック（emission モード）
+  if (mode === 'emission') {
+    const w = main.clientWidth;
+    const h = main.clientHeight;
+    const ex = w * 0.25;
+    const ey = h * 0.5 + state.electronY;
+    const dist = Math.hypot(mouseX - ex, mouseY - ey);
+    if (dist < 20) {
+      state.isDragging = true;
+      state.dragStartY = mouseY;
+    }
+  }
+});
+
+main.addEventListener('mousemove', (e) => {
+  if (!state.isDragging) return;
+  const rect = main.getBoundingClientRect();
+  mouseY = e.clientY - rect.top;
+  const h = main.clientHeight;
+  state.electronY = Math.max(-h * 0.2, Math.min(h * 0.2, mouseY - h * 0.5));
+});
+
+main.addEventListener('mouseup', () => {
+  state.isDragging = false;
+});
+
+main.addEventListener('mouseleave', () => {
+  state.isDragging = false;
+});
+
+// 描画ユーティリティ
+function clear(cv) {
+  const c = cv.getContext('2d');
+  const s = getComputedStyle(document.body);
+  c.fillStyle = s.getPropertyValue('--bg');
+  c.fillRect(0, 0, cv.width, cv.height);
+}
+
+function grid(cv) {
+  const c = cv.getContext('2d');
+  const w = cv.clientWidth, h = cv.clientHeight;
+  const s = getComputedStyle(document.body);
+  c.strokeStyle = s.getPropertyValue('--grid');
+  c.lineWidth = 1;
+  c.beginPath();
+  const step = 40;
+  for (let x = 0; x < w; x += step) {
+    c.moveTo(x, 0); c.lineTo(x, h);
+  }
+  for (let y = 0; y < h; y += step) {
+    c.moveTo(0, y); c.lineTo(w, y);
+  }
+  c.stroke();
+}
+
+function line(c, x1, y1, x2, y2, col, lw = 2) {
+  c.save();
+  c.strokeStyle = col;
+  c.lineWidth = lw;
+  c.beginPath();
+  c.moveTo(x1, y1);
+  c.lineTo(x2, y2);
+  c.stroke();
+  c.restore();
+}
+
+function arrow(c, x1, y1, x2, y2, col, lw = 2) {
+  line(c, x1, y1, x2, y2, col, lw);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = 8;
+  c.save();
+  c.translate(x2, y2);
+  c.rotate(angle);
+  c.fillStyle = col;
+  c.beginPath();
+  c.moveTo(0, 0);
+  c.lineTo(-len, len * 0.7);
+  c.lineTo(-len, -len * 0.7);
+  c.closePath();
+  c.fill();
+  c.restore();
+}
+
+function circle(c, x, y, r, col, lw = 2) {
+  c.save();
+  c.strokeStyle = col;
+  c.lineWidth = lw;
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.stroke();
+  c.restore();
+}
+
+function fillCircle(c, x, y, r, col) {
+  c.save();
+  c.fillStyle = col;
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+function drawElectron(c, x, y, charge = 0) {
+  const s = getComputedStyle(document.body);
+  // 電子本体
+  fillCircle(c, x, y, 8, s.getPropertyValue('--electron'));
+  circle(c, x, y, 8, '#333', 2);
+  
+  // 電荷の視覚化
+  c.save();
+  c.fillStyle = charge > 0 ? '#ff5252' : charge < 0 ? '#448aff' : '#999';
+  c.font = 'bold 10px sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(charge > 0 ? '+' : charge < 0 ? '−' : '0', x, y);
+  c.restore();
+}
+
+function drawCoil(c, x, y, current = 0) {
+  const s = getComputedStyle(document.body);
+  c.save();
+  c.strokeStyle = s.getPropertyValue('--B');
+  c.lineWidth = 3;
+  c.globalAlpha = 0.7 + 0.3 * Math.abs(current);
+  c.beginPath();
+  let cx = x, cy = y - 10;
+  for (let i = 0; i < 6; i++) {
+    c.arc(cx + 12, cy, 12, Math.PI * 0.6, -Math.PI * 0.6, true);
+    cx += 20;
+  }
+  c.stroke();
+  c.restore();
+}
+
+function drawCapacitor(c, x, y, charge = 0) {
+  const s = getComputedStyle(document.body);
+  c.save();
+  c.strokeStyle = s.getPropertyValue('--E');
+  c.lineWidth = 4;
+  c.beginPath();
+  c.moveTo(x, y - 25);
+  c.lineTo(x, y + 25);
+  c.stroke();
+  c.beginPath();
+  c.moveTo(x + 18, y - 25);
+  c.lineTo(x + 18, y + 25);
+  c.stroke();
+  
+  // 電荷の視覚化
+  c.globalAlpha = Math.min(1, Math.abs(charge) * 0.7);
+  c.fillStyle = charge > 0 ? '#ef5350' : '#64b5f6';
+  c.fillRect(x - 4, y - 23, 8, 46);
+  c.fillStyle = charge > 0 ? '#64b5f6' : '#ef5350';
+  c.fillRect(x + 14, y - 23, 8, 46);
+  c.restore();
+}
+
+function drawAntenna(c, x, y, length = 90) {
+  c.save();
+  c.strokeStyle = '#9e9e9e';
+  c.lineWidth = 4;
+  c.beginPath();
+  c.moveTo(x, y - length);
+  c.lineTo(x, y + length);
+  c.stroke();
+  c.restore();
+}
+
+function drawFieldVector(c, x, y, vx, vy, col, label = '') {
+  const len = Math.hypot(vx, vy);
+  if (len < 0.1) return;
+  
+  arrow(c, x, y, x + vx, y + vy, col, 2);
+  
+  if (label && len > 10) {
+    c.save();
+    c.fillStyle = col;
+    c.font = 'bold 11px sans-serif';
+    c.textAlign = 'center';
+    c.fillText(label, x + vx * 0.5, y + vy * 0.5 - 8);
+    c.restore();
+  }
+}
+
+function pushBuf(arr, v) {
+  arr.push(v);
+  if (arr.length > maxBuf) arr.shift();
+}
+
+function plotGraph(cv, arrs, colors, labels) {
+  clear(cv);
+  grid(cv);
+  
+  const c = cv.getContext('2d');
+  const w = cv.clientWidth, h = cv.clientHeight;
+  const s = getComputedStyle(document.body);
+  
+  // 軸
+  c.strokeStyle = s.getPropertyValue('--muted');
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(35, h - 20);
+  c.lineTo(w - 10, h - 20);
+  c.moveTo(35, 10);
+  c.lineTo(35, h - 20);
+  c.stroke();
+  
+  // ゼロライン
+  c.strokeStyle = s.getPropertyValue('--grid');
+  c.setLineDash([5, 5]);
+  c.beginPath();
+  c.moveTo(35, h / 2);
+  c.lineTo(w - 10, h / 2);
+  c.stroke();
+  c.setLineDash([]);
+  
+  // データ
+  arrs.forEach((arr, idx) => {
+    if (arr.length < 2) return;
+    
+    c.strokeStyle = colors[idx];
+    c.lineWidth = 2;
+    c.beginPath();
+    
+    for (let i = 0; i < arr.length; i++) {
+      const x = 35 + (w - 45) * i / Math.max(1, arr.length - 1);
+      const y = h / 2 - (h - 30) * arr[i] / 4; // スケール調整
+      
+      if (i === 0) c.moveTo(x, y);
+      else c.lineTo(x, y);
+    }
+    c.stroke();
+    
+    // ラベル
+    c.fillStyle = colors[idx];
+    c.font = 'bold 11px sans-serif';
+    c.fillText(labels[idx], 40, 16 + 14 * idx);
+  });
+}
+
+// ===== モードA：電気振動と放射 =====
+function drawEmission() {
+  clear(main);
+  grid(main);
+  
+  const w = main.clientWidth, h = main.clientHeight;
+  const s = getComputedStyle(document.body);
+  const A = Number(amp.value);
+  const f = effectiveFreq();
+  const omega = 2 * Math.PI * f;
+  
+  // 電気振動の計算
+  let I, Q;
+  if (manualMode && state.isDragging) {
+    // 手動モード：電子の位置から電荷を計算
+    Q = state.electronY / (h * 0.2); // -1 ~ 1
+    I = 0; // 簡略化
+  } else {
+    // 自動モード：正弦波振動
+    I = A * Math.sin(omega * state.time);
+    Q = A * Math.cos(omega * state.time);
+    state.electronY = Q * h * 0.15;
+  }
+  
+  const Uc = 0.5 * Q * Q;
+  const Ul = 0.5 * I * I;
+  
+  // === LC回路（左側） ===
+  const lcX = 130, lcY = h * 0.35;
+  
+  // タイトル
+  ctx.save();
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('LC回路の電気振動', 40, 24);
+  ctx.restore();
+  
+  // コイル
+  drawCoil(ctx, 40, lcY, I);
+  
+  // コンデンサー
+  drawCapacitor(ctx, lcX + 60, lcY, Q);
+  
+  // 電子の可視化
+  const electronX = w * 0.25;
+  const electronY = h * 0.5 + state.electronY;
+  drawElectron(ctx, electronX, electronY, Q);
+  
+  // 電流の方向
+  if (Math.abs(I) > 0.1) {
+    const dir = Math.sign(I);
+    arrow(ctx, lcX - 20, lcY, lcX - 20, lcY - dir * 30, s.getPropertyValue('--B'), 3);
+  }
+  
+  // エネルギーの表示
+  ctx.save();
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--E');
+  ctx.fillText(`Uc = ${Uc.toFixed(2)}`, lcX + 90, lcY - 35);
+  ctx.fillStyle = s.getPropertyValue('--B');
+  ctx.fillText(`Ul = ${Ul.toFixed(2)}`, 40, lcY + 60);
+  ctx.restore();
+  
+  // === アンテナと放射（右側） ===
+  const antX = w * 0.65, antY = h * 0.5;
+  const antLen = 90;
+  
+  ctx.save();
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.fillText('電磁波の放射', antX - 50, 24);
+  ctx.restore();
+  
+  drawAntenna(ctx, antX, antY, antLen);
+  
+  // アンテナの電流
+  if (Math.abs(I) > 0.1) {
+    const dir = Math.sign(I);
+    arrow(ctx, antX, antY, antX, antY - dir * 50, s.getPropertyValue('--S'), 4);
+  }
+  
+  // 電磁波の波面（等位相円）
+  const fieldDisplay = document.querySelector('input[name="fieldDisplay"]:checked').value;
+  
+  for (let k = 1; k <= 10; k++) {
+    const r = (k * 25 + (state.time * 150) % 25);
+    if (r > w * 0.45) continue;
+    
+    ctx.globalAlpha = Math.max(0, 1 - r / (w * 0.35));
+    circle(ctx, antX, antY, r, s.getPropertyValue('--B'), 1.5);
+  }
+  ctx.globalAlpha = 1;
+  
+  // 電場・磁場ベクトル（選択した点で表示）
+  if (fieldDisplay === 'vectors' || fieldDisplay === 'both') {
+    const numVectors = 8;
+    for (let i = 0; i < numVectors; i++) {
+      const angle = (i / numVectors) * Math.PI * 2;
+      const r = 120;
+      const vx = antX + r * Math.cos(angle);
+      const vy = antY + r * Math.sin(angle);
+      
+      // 電場（半径方向に振動）
+      const phase = omega * state.time - (r / 50);
+      const Emag = A * Math.sin(phase) * 30;
+      const Ex = Emag * Math.cos(angle);
+      const Ey = Emag * Math.sin(angle);
+      
+      // 磁場（円周方向）
+      const Bmag = A * Math.sin(phase) * 30;
+      const Bx = -Bmag * Math.sin(angle);
+      const By = Bmag * Math.cos(angle);
+      
+      if (Math.abs(Emag) > 2) {
+        drawFieldVector(ctx, vx, vy, Ex, Ey, s.getPropertyValue('--E'), i === 0 ? 'E' : '');
+      }
+      if (Math.abs(Bmag) > 2) {
+        drawFieldVector(ctx, vx, vy, Bx, By, s.getPropertyValue('--B'), i === 0 ? 'B' : '');
+      }
+    }
+  }
+  
+  // ポインティングベクトル（エネルギーの流れ）
+  const numPointing = 6;
+  for (let i = 0; i < numPointing; i++) {
+    const angle = (i / numPointing) * Math.PI * 2;
+    const r = 80 + 40 * Math.cos(omega * state.time);
+    const px = antX + r * Math.cos(angle);
+    const py = antY + r * Math.sin(angle);
+    const Sx = 25 * Math.cos(angle);
+    const Sy = 25 * Math.sin(angle);
+    
+    arrow(ctx, px, py, px + Sx, py + Sy, s.getPropertyValue('--S'), 2);
+  }
+  
+  // 受信メータ（仮想受信機）
+  const rxX = w * 0.88, rxY = h * 0.75;
+  const R = Math.hypot(rxX - antX, rxY - antY);
+  const intensity = Math.min(1, (A * A) / Math.max(1, (R * 0.015) ** 2));
+  meterFill.style.width = (intensity * 100).toFixed(1) + '%';
+  
+  // グラフ用バッファ更新
+  pushBuf(bufI, Math.max(-1, Math.min(1, I)));
+  pushBuf(bufQ, Math.max(-1, Math.min(1, Q)));
+  pushBuf(bufU, Math.max(-1, Math.min(1, Uc + Ul)));
+  pushBuf(bufS, Math.max(-1, Math.min(1, intensity * 2 - 1)));
+}
+
+// ===== モードB：ヘルツの実験 =====
+function drawHertz() {
+  clear(main);
+  grid(main);
+  
+  const w = main.clientWidth, h = main.clientHeight;
+  const s = getComputedStyle(document.body);
+  const A = Number(amp.value);
+  const f = effectiveFreq();
+  const omega = 2 * Math.PI * f;
+  const gap = Number(gapSize.value);
+  
+  // 誘導コイルと火花ギャップ（送信側）
+  const txX = w * 0.25, txY = h * 0.5;
+  
+  ctx.save();
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.fillText('送信側（誘導コイル + 火花ギャップ）', txX - 100, 24);
+  ctx.restore();
+  
+  // 誘導コイル
+  drawCoil(ctx, txX - 80, txY, Math.sin(omega * state.time));
+  
+  // 火花ギャップ
+  const gapLeft = txX + 40;
+  const gapRight = txX + 40 + gap * 30;
+  const gapY = txY;
+  
+  // 電極
+  fillCircle(ctx, gapLeft, gapY, 12, '#666');
+  fillCircle(ctx, gapRight, gapY, 12, '#666');
+  
+  // 電位差に応じて火花
+  const voltage = A * Math.sin(omega * state.time);
+  const threshold = gap * 0.5;
+  
+  if (Math.abs(voltage) > threshold) {
+    state.sparkIntensity = Math.min(1, state.sparkIntensity + 0.3);
+    
+    // 火花の描画
+    ctx.save();
+    ctx.strokeStyle = s.getPropertyValue('--spark');
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = s.getPropertyValue('--spark');
+    ctx.globalAlpha = state.sparkIntensity;
+    
+    // ジグザグ火花
+    ctx.beginPath();
+    ctx.moveTo(gapLeft + 12, gapY);
+    const segments = 8;
+    for (let i = 1; i <= segments; i++) {
+      const x = gapLeft + 12 + (gapRight - gapLeft - 24) * i / segments;
+      const y = gapY + (Math.random() - 0.5) * 20 * state.sparkIntensity;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(gapRight - 12, gapY);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    state.sparkIntensity = Math.max(0, state.sparkIntensity - 0.1);
+  }
+  
+  // ダイポールアンテナ（送信側）
+  const txAntX = txX + gap * 15 + 60;
+  const txAntY = txY;
+  drawAntenna(ctx, txAntX, txAntY, 80);
+  
+  // 電磁波の放射
+  const fieldDisplay = document.querySelector('input[name="fieldDisplay"]:checked').value;
+  
+  // 波面
+  for (let k = 1; k <= 12; k++) {
+    const r = (k * 22 + (state.time * 140) % 22) * (state.sparkIntensity * 0.5 + 0.5);
+    if (r > w * 0.4) continue;
+    
+    ctx.globalAlpha = Math.max(0, (1 - r / (w * 0.35)) * state.sparkIntensity);
+    circle(ctx, txAntX, txAntY, r, s.getPropertyValue('--B'), 1.5);
+  }
+  ctx.globalAlpha = 1;
+  
+  // === 受信側（共振器） ===
+  const rxX = w * 0.75, rxY = h * 0.5;
+  
+  ctx.save();
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.fillText('受信側（共振器 + 火花ギャップ）', rxX - 80, 24);
+  ctx.restore();
+  
+  // 受信アンテナ（共振器リング）
+  circle(ctx, rxX, rxY, 70, '#9e9e9e', 4);
+  
+  // 受信側の火花ギャップ
+  const rxGapLeft = rxX - 15;
+  const rxGapRight = rxX + 15;
+  fillCircle(ctx, rxGapLeft, rxY + 70, 8, '#666');
+  fillCircle(ctx, rxGapRight, rxY + 70, 8, '#666');
+  
+  // 受信電磁場の強度計算
+  const R = Math.hypot(rxX - txAntX, rxY - txAntY);
+  const receivedField = (A / Math.max(1, R * 0.01)) * Math.sin(omega * state.time - R * 0.02);
+  const intensity = Math.abs(receivedField);
+  
+  // 受信側の火花（弱い）
+  if (intensity > 0.7 && state.sparkIntensity > 0.5) {
+    ctx.save();
+    ctx.strokeStyle = s.getPropertyValue('--spark');
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = s.getPropertyValue('--spark');
+    ctx.globalAlpha = intensity * state.sparkIntensity * 0.5;
+    
+    ctx.beginPath();
+    ctx.moveTo(rxGapLeft + 8, rxY + 70);
+    ctx.lineTo(rxGapRight - 8, rxY + 70);
+    ctx.stroke();
+    ctx.restore();
+  }
+  
+  // 受信強度メータ
+  meterFill.style.width = (intensity * state.sparkIntensity * 100).toFixed(1) + '%';
+  
+  // 説明テキスト
+  ctx.save();
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--muted');
+  ctx.fillText('送信側の火花が飛ぶと、電磁波が発生', txX - 80, h - 30);
+  ctx.fillText('受信側の共振器で電磁波を検出（小さな火花）', rxX - 120, h - 30);
+  ctx.restore();
+  
+  // グラフ用バッファ
+  pushBuf(bufI, Math.max(-1, Math.min(1, voltage)));
+  pushBuf(bufQ, Math.max(-1, Math.min(1, receivedField)));
+  pushBuf(bufS, Math.max(-1, Math.min(1, intensity * state.sparkIntensity * 2 - 1)));
+  pushBuf(bufU, Math.max(-1, Math.min(1, state.sparkIntensity)));
+}
+
+// ===== モードC：伝搬と受信 =====
+function drawPropagation() {
+  clear(main);
+  grid(main);
+  
+  const w = main.clientWidth, h = main.clientHeight;
+  const s = getComputedStyle(document.body);
+  const A = Number(amp.value);
+  const f = effectiveFreq();
+  const omega = 2 * Math.PI * f;
+  const n = Number(nmed.value);
+  const c_rel = 240 / n;
+  const k = 2 * Math.PI / Math.max(60, c_rel / f);
+  
+  // 送信・受信アンテナ
+  const txX = w * 0.18, rxX = w * (0.18 + Number(dist.value));
+  const midY = h * 0.5;
+  
+  ctx.save();
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.fillText('送信機', txX - 30, 24);
+  ctx.fillText('受信機', rxX - 30, 24);
+  ctx.restore();
+  
+  drawAntenna(ctx, txX, midY, 80);
+  drawAntenna(ctx, rxX, midY, 80);
+  
+  // 送信側の電子
+  const txElectronY = midY + A * 50 * Math.sin(omega * state.time);
+  drawElectron(ctx, txX, txElectronY, Math.sin(omega * state.time));
+  
+  // 電磁波の伝搬（E波形）
+  const fieldDisplay = document.querySelector('input[name="fieldDisplay"]:checked').value;
+  
+  if (fieldDisplay === 'curves' || fieldDisplay === 'both') {
+    ctx.save();
+    ctx.strokeStyle = s.getPropertyValue('--E');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    for (let x = txX; x < rxX; x += 3) {
+      const y = midY - A * 45 * Math.sin(k * (x - txX) - omega * state.time);
+      if (x === txX) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  
+  // B場（円で表現）
+  if (fieldDisplay === 'vectors' || fieldDisplay === 'both') {
+    const numB = 12;
+    for (let i = 0; i < numB; i++) {
+      const x = txX + i * (rxX - txX) / (numB - 1);
+      const Bval = Math.abs(Math.sin(k * (x - txX) - omega * state.time));
+      circle(ctx, x, midY, 5 + 15 * Bval, s.getPropertyValue('--B'), 2);
+    }
+  }
+  
+  // ポインティングベクトル
+  const numS = 7;
+  for (let i = 0; i < numS; i++) {
+    const x = txX + i * (rxX - txX) / (numS - 1);
+    arrow(ctx, x - 16, midY + 100, x + 16, midY + 100, s.getPropertyValue('--S'), 2);
+  }
+  
+  // 受信側の電子の応答
+  const delay = (rxX - txX) * 0.005; // 遅延
+  const rxElectronPhase = omega * (state.time - delay);
+  state.receiverElectronY = midY + A * 50 * Math.sin(k * (rxX - txX) - rxElectronPhase);
+  drawElectron(ctx, rxX, state.receiverElectronY, Math.sin(rxElectronPhase));
+  
+  // 受信強度
+  const R = rxX - txX;
+  const intensity = Math.min(1, (A * A) / Math.max(1, (R * 0.015) ** 2));
+  meterFill.style.width = (intensity * 100).toFixed(1) + '%';
+  
+  // 波長表示
+  const lambda = c_rel / f;
+  ctx.save();
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = s.getPropertyValue('--fg');
+  ctx.fillText(`λ ≈ c/f = ${c_rel.toFixed(0)}/${f.toFixed(2)} ≈ ${lambda.toFixed(1)} (相対)`, txX, midY - 110);
+  ctx.fillText(`屈折率 n = ${n.toFixed(2)}`, txX, midY - 90);
+  ctx.restore();
+  
+  // グラフ用バッファ
+  const Eprobe = A * Math.sin(k * (rxX - txX) - omega * state.time);
+  pushBuf(bufI, Math.max(-1, Math.min(1, A * Math.sin(omega * state.time))));
+  pushBuf(bufQ, Math.max(-1, Math.min(1, Eprobe)));
+  pushBuf(bufS, Math.max(-1, Math.min(1, intensity * 2 - 1)));
+  pushBuf(bufU, Math.max(-1, Math.min(1, intensity)));
+}
+
+// ===== メインループ =====
+let lastTime = performance.now();
+let acc = 0, frames = 0;
+
+function loop(t) {
+  const dt = Math.min(0.033, (t - lastTime) / 1000);
+  lastTime = t;
+  
+  acc += dt;
+  frames++;
+  if (acc > 0.5) {
+    fpsChip.textContent = Math.round(frames / acc) + ' fps';
+    acc = 0;
+    frames = 0;
+  }
+  
+  if (running && !state.isDragging) {
+    state.time += dt;
+  }
+  
+  // 描画
+  if (mode === 'emission') {
+    drawEmission();
+  } else if (mode === 'hertz') {
+    drawHertz();
+  } else if (mode === 'propagation') {
+    drawPropagation();
+  }
+  
+  drawGraphs();
+  updateDerivedValues();
+  
+  requestAnimationFrame(loop);
+}
+
+// グラフ描画
+function drawGraphs() {
+  const s = getComputedStyle(document.body);
+  
+  if (mode === 'emission') {
+    plotGraph(g1, [bufQ, bufI], [s.getPropertyValue('--E'), s.getPropertyValue('--B')], ['Q(t) ∝ E', 'I(t) ∝ B']);
+    plotGraph(g2, [bufU, bufS], [s.getPropertyValue('--S'), '#9c27b0'], ['Uc+Ul (総エネルギー)', '受信強度 S']);
+  } else if (mode === 'hertz') {
+    plotGraph(g1, [bufI, bufQ], [s.getPropertyValue('--spark'), s.getPropertyValue('--B')], ['送信電圧', '受信信号']);
+    plotGraph(g2, [bufU, bufS], [s.getPropertyValue('--spark'), s.getPropertyValue('--S')], ['火花強度', '受信強度']);
+  } else if (mode === 'propagation') {
+    plotGraph(g1, [bufI, bufQ], [s.getPropertyValue('--E'), s.getPropertyValue('--B')], ['送信 E(t)', '受信 E(t)']);
+    plotGraph(g2, [bufS], [s.getPropertyValue('--S')], ['ポインティングS']);
+  }
+}
+
+// 初期化
+updateDerivedValues();
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
